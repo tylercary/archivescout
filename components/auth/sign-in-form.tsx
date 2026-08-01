@@ -35,24 +35,32 @@ export function SignInForm() {
       return;
     }
     setPending(true);
+    // Resume whatever the user was doing before the auth gate. Only same-origin
+    // relative paths are honored — an absolute URL here would be an open-redirect.
+    const next = searchParams.get("next");
+    const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/saved";
+
     try {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        // Resume whatever the user was doing before the auth gate. Only
-        // same-origin relative paths are honored — an absolute URL here would
-        // be an open-redirect.
-        const next = searchParams.get("next");
-        const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/saved";
         router.push(safeNext);
         router.refresh();
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        setMessage({
-          type: "ok",
-          text: "Check your email to confirm your account, then sign in.",
-        });
+        // When email confirmation is DISABLED, sign-up returns a live session —
+        // the user is already signed in, so continue straight to what they were
+        // doing instead of telling them to check a mailbox that gets nothing.
+        if (data.session) {
+          router.push(safeNext);
+          router.refresh();
+        } else {
+          setMessage({
+            type: "ok",
+            text: "Check your email to confirm your account, then sign in.",
+          });
+        }
       }
     } catch (err) {
       setMessage({

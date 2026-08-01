@@ -10,7 +10,12 @@ import {
 } from "@/lib/marketplaces/types";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useSearches } from "@/lib/store/searches";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { useSavedSearches } from "@/lib/saved-searches/use-saved-searches";
+import { toSavedSearchPayload } from "@/lib/saved-searches/serializer";
+import { toQueryString } from "@/lib/search/params";
+import { SaveSearchDialog } from "@/components/searches/save-search-dialog";
 import { cn } from "@/lib/utils";
 
 interface ResultsToolbarProps {
@@ -32,26 +37,40 @@ export function ResultsToolbar({
   onOpenFilters,
   activeFilterCount,
 }: ResultsToolbarProps) {
-  const { saveSearch, isSaved, removeSaved, saved, hydrated } = useSearches();
-  const saved_ = hydrated && isSaved(params.query);
+  const router = useRouter();
+  const { user, configured } = useAuth();
+  const { findMatching } = useSavedSearches();
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  // Identity is the FULL normalized search, so "chanel runners" and
+  // "chanel runners + size 13" are tracked as different saved searches.
+  const searchQueryString = toQueryString(params);
+  const payload = React.useMemo(() => toSavedSearchPayload(params), [searchQueryString]); // eslint-disable-line react-hooks/exhaustive-deps
+  const existing = findMatching(payload);
+  const saved_ = Boolean(existing);
 
   const onToggleSave = () => {
-    if (saved_) {
-      const match = saved.find(
-        (s) => s.query.toLowerCase() === params.query.trim().toLowerCase(),
-      );
-      if (match) removeSaved(match.id);
-    } else {
-      saveSearch({
-        query: params.query,
-        marketplaces: params.marketplaces,
-        filters: params.filters,
-        sort: params.sort,
-        maxDesiredPrice: params.filters.maxPrice,
-        priceAlert: false,
-      });
+    // Signed out → send to sign-in and come straight back to this exact
+    // search, with the save dialog reopening automatically.
+    if (!user) {
+      const here = `/search?${searchQueryString}`;
+      const next = `${here}${searchQueryString ? "&" : "?"}save=1`;
+      router.push(`/signin?next=${encodeURIComponent(next)}`);
+      return;
     }
+    setDialogOpen(true);
   };
+
+  // Resume the save flow after sign-in (?save=1), then clean the URL.
+  React.useEffect(() => {
+    if (!user) return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("save") !== "1") return;
+    setDialogOpen(true);
+    sp.delete("save");
+    const qs = sp.toString();
+    window.history.replaceState(null, "", qs ? `/search?${qs}` : "/search");
+  }, [user]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -83,9 +102,19 @@ export function ResultsToolbar({
             <Bookmark className="h-4 w-4" />
           )}
           <span className="hidden sm:inline">
-            {saved_ ? "Search saved" : "Save search"}
+            {saved_ ? "Saved ✓" : "Save search"}
           </span>
         </Button>
+      )}
+
+      {configured && (
+        <SaveSearchDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          payload={payload}
+          searchQueryString={searchQueryString}
+          existing={existing}
+        />
       )}
 
       <div className="ml-auto flex items-center gap-2">

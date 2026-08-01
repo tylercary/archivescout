@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { AuthProvider } from "@/lib/supabase/auth-context";
+import { SavedSearchesProvider } from "@/lib/saved-searches/use-saved-searches";
 import { CompareProvider } from "./compare";
 import { FavoritesProvider } from "./favorites";
 import { SearchesProvider } from "./searches";
@@ -10,11 +11,13 @@ import { SearchesProvider } from "./searches";
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
+      <SavedSearchesProvider>
       <FavoritesProvider>
         <CompareProvider>
           <SearchesProvider>{children}</SearchesProvider>
         </CompareProvider>
       </FavoritesProvider>
+      </SavedSearchesProvider>
     </AuthProvider>
   );
 }

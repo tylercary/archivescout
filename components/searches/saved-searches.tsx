@@ -1,39 +1,79 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, Bookmark, Play, Search, Trash2 } from "lucide-react";
-import { useSearches } from "@/lib/store/searches";
-import { MARKETPLACE_LABELS } from "@/lib/marketplaces/types";
-import { toQueryString, countActiveFilters, DEFAULT_PER_PAGE } from "@/lib/search/params";
+import { Bell, Bookmark, Pencil, Play, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, cn } from "@/lib/utils";
-import type { SavedSearch } from "@/types";
+import { Dialog } from "@/components/ui/dialog";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { useSavedSearches } from "@/lib/saved-searches/use-saved-searches";
+import { SaveSearchDialog } from "./save-search-dialog";
+import {
+  describeSearch,
+  toSearchUrl,
+  type SavedSearchPayload,
+} from "@/lib/saved-searches/serializer";
+import type { SavedSearchRecord } from "@/lib/saved-searches/service";
+
+const payloadOf = (s: SavedSearchRecord): SavedSearchPayload => ({
+  query: s.query,
+  marketplaces: s.marketplaces,
+  filters: s.filters,
+  sort: s.sort,
+});
+
+const dateLabel = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
 export function SavedSearchesDashboard() {
-  const { saved, removeSaved, togglePriceAlert, hydrated } = useSearches();
   const router = useRouter();
+  const { user, loading: authLoading, configured } = useAuth();
+  const { searches, loading, remove } = useSavedSearches();
+  const [editing, setEditing] = React.useState<SavedSearchRecord | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState<SavedSearchRecord | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
-  const rerun = (s: SavedSearch) => {
-    const qs = toQueryString({
-      query: s.query,
-      marketplaces: s.marketplaces,
-      filters: s.filters,
-      sort: s.sort,
-      page: 1,
-      perPage: DEFAULT_PER_PAGE,
-    });
-    router.push(`/search?${qs}`);
-  };
-
-  if (!hydrated) {
+  if (!configured) {
     return (
-      <div className="container py-10 space-y-4">
+      <Empty
+        title="Saved searches need an account"
+        body="Accounts aren't configured in this deployment yet."
+      />
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="container space-y-4 py-10">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-28 w-full" />
         <Skeleton className="h-28 w-full" />
       </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Empty
+        title="Sign in to see your saved searches"
+        body="Saved searches sync to your account, so they follow you across devices."
+        action={
+          <Button asChild>
+            <Link href="/signin?next=/searches">
+              <User className="h-4 w-4" />
+              Sign in
+            </Link>
+          </Button>
+        }
+      />
     );
   }
 
@@ -45,102 +85,90 @@ export function SavedSearchesDashboard() {
           Saved searches
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Re-run a search any time. Toggle a price alert to flag the hunts you
-          care about most.
+          {loading
+            ? "Loading…"
+            : `${searches.length} saved ${searches.length === 1 ? "search" : "searches"}`}
         </p>
       </header>
 
-      {saved.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/30 px-6 py-20 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-card shadow-sm">
-            <Bookmark className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <h2 className="mt-6 font-display text-2xl font-semibold tracking-tight">
-            No saved searches
-          </h2>
-          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-            Run a search, then tap “Save search” to keep it here for quick
-            access.
-          </p>
-          <Button asChild className="mt-6">
-            <Link href="/search">
-              <Search className="h-4 w-4" />
-              Start searching
-            </Link>
-          </Button>
+      {loading && searches.length === 0 ? (
+        <div className="space-y-3">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
         </div>
+      ) : searches.length === 0 ? (
+        <Empty
+          title="No saved searches yet"
+          body="Run a search, refine it, then hit Save search to keep it here."
+          action={
+            <Button asChild>
+              <Link href="/search">Start searching</Link>
+            </Button>
+          }
+        />
       ) : (
-        <ul className="space-y-4">
-          {saved.map((s) => {
-            const filterCount = countActiveFilters(s.filters);
+        <ul className="space-y-3">
+          {searches.map((s) => {
+            const rows = describeSearch(payloadOf(s)).filter(
+              (r) => !["Query", "Sort"].includes(r.label),
+            );
             return (
-              <li
-                key={s.id}
-                className="rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4">
+              <li key={s.id} className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                    <h2 className="font-medium text-foreground">{s.name}</h2>
+                    <p className="mt-0.5 truncate text-sm text-muted-foreground">
                       {s.query || "All listings"}
-                    </h3>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Chip>
-                        {s.marketplaces.map((m) => MARKETPLACE_LABELS[m]).join(", ")}
-                      </Chip>
-                      {filterCount > 0 && (
-                        <Chip>
-                          {filterCount} filter{filterCount === 1 ? "" : "s"}
-                        </Chip>
-                      )}
-                      {s.maxDesiredPrice !== undefined && (
-                        <Chip>Max {formatCurrency(s.maxDesiredPrice)}</Chip>
-                      )}
-                      <span>
-                        Saved{" "}
-                        {new Date(s.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </div>
+                    </p>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => togglePriceAlert(s.id)}
-                      aria-pressed={s.priceAlert}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                        s.priceAlert
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-input text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
+                  <div className="flex shrink-0 gap-1.5">
+                    <Button size="sm" onClick={() => router.push(toSearchUrl(payloadOf(s)))}>
+                      <Play className="h-3.5 w-3.5" />
+                      Run search
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditing(s)}
+                      aria-label={`Edit ${s.name}`}
                     >
-                      {s.priceAlert ? (
-                        <Bell className="h-3.5 w-3.5" />
-                      ) : (
-                        <BellOff className="h-3.5 w-3.5" />
-                      )}
-                      {s.priceAlert ? "Alert on" : "Alert off"}
-                    </button>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setConfirmDelete(s)}
+                      aria-label={`Delete ${s.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center gap-2 border-t border-border pt-4">
-                  <Button size="sm" onClick={() => rerun(s)}>
-                    <Play className="h-3.5 w-3.5" />
-                    Re-run search
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeSaved(s.id)}
-                    aria-label="Remove saved search"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </Button>
+                {rows.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {rows.map((r) => (
+                      <span
+                        key={r.label}
+                        className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground"
+                      >
+                        <span className="text-foreground/70">{r.label}:</span> {r.value}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Bell className="h-3 w-3" aria-hidden />
+                    {s.notificationsEnabled
+                      ? s.notificationTypes
+                          .map((t) => (t === "new_listings" ? "New listings" : "Price drops"))
+                          .join(", ")
+                      : "Alerts off"}
+                  </span>
+                  <span>Saved {dateLabel(s.createdAt)}</span>
+                  {s.lastCheckedAt && <span>Last checked {dateLabel(s.lastCheckedAt)}</span>}
                 </div>
               </li>
             );
@@ -148,20 +176,72 @@ export function SavedSearchesDashboard() {
         </ul>
       )}
 
-      {saved.some((s) => s.priceAlert) && (
-        <p className="mt-6 text-xs text-muted-foreground">
-          Price alerts are stored on your account. Email notifications aren&apos;t
-          sent in this demo — see the integration docs for wiring them up.
-        </p>
+      {editing && (
+        <SaveSearchDialog
+          open
+          onClose={() => setEditing(null)}
+          payload={payloadOf(editing)}
+          searchQueryString=""
+          existing={editing}
+        />
       )}
+
+      <Dialog
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        label="Delete saved search"
+      >
+        <div className="p-5 sm:p-6">
+          <h2 className="font-display text-xl font-semibold tracking-tight">
+            Delete saved search?
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{confirmDelete?.name}</span> will be
+            removed. This can&apos;t be undone.
+          </p>
+          <div className="mt-6 flex gap-2">
+            <Button
+              className="flex-1"
+              disabled={deleting}
+              onClick={async () => {
+                if (!confirmDelete) return;
+                setDeleting(true);
+                await remove(confirmDelete.id);
+                setDeleting(false);
+                setConfirmDelete(null);
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={deleting}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
 
-function Chip({ children }: { children: React.ReactNode }) {
+function Empty({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <span className="rounded-full bg-secondary px-2.5 py-1 font-medium text-foreground">
-      {children}
-    </span>
+    <div className="container py-10">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/30 px-6 py-20 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-card shadow-sm">
+          <Bookmark className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-2 max-w-md text-sm text-muted-foreground">{body}</p>
+        {action && <div className="mt-6">{action}</div>}
+      </div>
+    </div>
   );
 }

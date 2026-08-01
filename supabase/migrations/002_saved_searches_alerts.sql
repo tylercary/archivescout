@@ -35,14 +35,13 @@ create index if not exists saved_searches_alert_sweep_idx
 -- A user shouldn't accumulate duplicates of the identical search. Uniqueness
 -- is on the SEARCH IDENTITY (query + filters + marketplaces + sort), not the
 -- name, so renaming stays free while re-saving the same search is a no-op.
+-- Index the columns DIRECTLY rather than hashing them. `array_to_string` is
+-- STABLE (not IMMUTABLE) so Postgres rejects it in an index expression, and
+-- md5(filters::text) would have been text-order-sensitive anyway. Native
+-- jsonb equality is semantic (key order doesn't matter) and text[] equality is
+-- element-wise, so this is both legal and MORE correct than the hash version.
 create unique index if not exists saved_searches_identity_idx
-  on public.saved_searches (
-    user_id,
-    query,
-    md5(filters::text),
-    md5(array_to_string(marketplaces, ',')),
-    sort
-  );
+  on public.saved_searches (user_id, query, filters, marketplaces, sort);
 
 -- Keep updated_at honest.
 create or replace function public.touch_saved_search_updated_at()

@@ -11,7 +11,7 @@
 -- ============================================================================
 
 -- Needed for gen_random_uuid()
-create extension if not exists "pgcrypto";
+create extension if not exists pgcrypto;
 
 -- ─────────────────────────── favorites ───────────────────────────
 create table if not exists public.favorites (
@@ -67,24 +67,24 @@ alter table public.saved_searches  enable row level security;
 alter table public.recent_searches enable row level security;
 
 -- favorites
-drop policy if exists "favorites are owner-only" on public.favorites;
-create policy "favorites are owner-only"
+drop policy if exists favorites_owner_only on public.favorites;
+create policy favorites_owner_only
   on public.favorites
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 -- saved_searches
-drop policy if exists "saved_searches are owner-only" on public.saved_searches;
-create policy "saved_searches are owner-only"
+drop policy if exists saved_searches_owner_only on public.saved_searches;
+create policy saved_searches_owner_only
   on public.saved_searches
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 -- recent_searches
-drop policy if exists "recent_searches are owner-only" on public.recent_searches;
-create policy "recent_searches are owner-only"
+drop policy if exists recent_searches_owner_only on public.recent_searches;
+create policy recent_searches_owner_only
   on public.recent_searches
   for all
   using (auth.uid() = user_id)

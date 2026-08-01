@@ -14,7 +14,7 @@
  *   · user B cannot read, update, or delete user A's row even knowing its id
  *   · inserting with someone else's user_id is rejected
  *
- * Creates two throwaway users (…@archivescout-test.invalid) and deletes its
+ * Creates two throwaway users (…@archivescout-test.com) and deletes its
  * own rows afterwards. It never uses a service-role key — if RLS is wrong,
  * these tests fail rather than silently passing with elevated privileges.
  */
@@ -44,7 +44,7 @@ function configError(lines) {
     "\nWhere to find the real values:\n" +
       "  supabase.com → your project → Settings → API\n" +
       "    Project URL   → NEXT_PUBLIC_SUPABASE_URL   (e.g. https://abcdefghijkl.supabase.co)\n" +
-      "    anon public   → NEXT_PUBLIC_SUPABASE_ANON_KEY (a long token starting 'eyJ')",
+      "    publishable   → NEXT_PUBLIC_SUPABASE_ANON_KEY ('sb_publishable_…', or legacy 'eyJ…')",
   );
   process.exit(2);
 }
@@ -71,12 +71,20 @@ if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(URL_.replace(/\/$/, "")))
     "Expected the form https://<something>.supabase.co",
   ]);
 }
-if (/service_role/i.test(ANON)) {
-  configError(["That looks like a SERVICE-ROLE key. Never put it in a NEXT_PUBLIC_ var — it bypasses RLS."]);
-}
-if (!ANON.startsWith("eyJ")) {
+// Reject anything that bypasses RLS. Supabase has two generations of keys:
+//   legacy:  anon JWT ("eyJ…")            vs  service_role JWT
+//   current: publishable ("sb_publishable_…") vs secret ("sb_secret_…")
+// Only the browser-safe halves belong in a NEXT_PUBLIC_ var.
+if (/service_role/i.test(ANON) || ANON.startsWith("sb_secret_")) {
   configError([
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY doesn't look like a Supabase key (they start with 'eyJ').",
+    "That is a SECRET/SERVICE-ROLE key — it bypasses Row Level Security.",
+    "Never put it in a NEXT_PUBLIC_ var; use the publishable (or anon) key instead.",
+  ]);
+}
+if (!ANON.startsWith("eyJ") && !ANON.startsWith("sb_publishable_")) {
+  configError([
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY doesn't look like a Supabase browser key.",
+    "Expected 'sb_publishable_…' (current) or 'eyJ…' (legacy anon).",
   ]);
 }
 
@@ -88,8 +96,8 @@ function check(name, passed, detail = "") {
 
 const anonClient = () => createClient(URL_, ANON);
 const stamp = Date.now();
-const userA = { email: `a-${stamp}@archivescout-test.invalid`, password: `Aa1!${stamp}aa` };
-const userB = { email: `b-${stamp}@archivescout-test.invalid`, password: `Bb1!${stamp}bb` };
+const userA = { email: `a-${stamp}@archivescout-test.com`, password: `Aa1!${stamp}aa` };
+const userB = { email: `b-${stamp}@archivescout-test.com`, password: `Bb1!${stamp}bb` };
 
 async function signUpAndIn(client, creds) {
   const { error: upErr } = await client.auth.signUp(creds);
@@ -117,13 +125,31 @@ const SEARCH = {
 async function main() {
   console.log(`verifying ${URL_}\n`);
 
-  /* ── PHASE 1: anonymous access must be denied ── */
-  console.log("━━ anonymous access");
+  /* ── PHASE 0: the table must actually exist ──
+   * PGRST205 means "table not in schema cache" — i.e. the SQL was never run.
+   * That is NOT RLS working; treating it as a pass would report a green suite
+   * against a database with no tables. Fail loudly and stop. */
+  console.log("━━ schema");
   const anon = anonClient();
+  const probe = await anon.from("saved_searches").select("id").limit(1);
+  if (probe.error?.code === "PGRST205") {
+    check("saved_searches table exists", false, "PGRST205 — table not found");
+    console.error(
+      "\nThe database schema has not been created. In the Supabase dashboard:\n" +
+        "  SQL Editor → New query → run supabase/schema.sql\n" +
+        "  then a new query → run supabase/migrations/002_saved_searches_alerts.sql\n" +
+        "  (order matters — the migration alters the table the schema creates)",
+    );
+    return finish();
+  }
+  check("saved_searches table exists", true);
+
+  /* ── PHASE 1: anonymous access must be denied ── */
+  console.log("\n━━ anonymous access");
   const { data: anonRead, error: anonReadErr } = await anon.from("saved_searches").select("*");
   check(
-    "anonymous SELECT returns nothing",
-    (anonRead?.length ?? 0) === 0,
+    "anonymous SELECT returns no rows",
+    (anonRead?.length ?? 0) === 0 && anonReadErr?.code !== "PGRST205",
     anonReadErr ? `blocked: ${anonReadErr.code}` : `rows=${anonRead?.length ?? 0}`,
   );
   const { error: anonWriteErr } = await anon

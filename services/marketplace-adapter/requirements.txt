@@ -1,0 +1,2 @@
+# Only needed for GRAILED_MODE=live. Demo mode uses the Python standard library.
+grailed_api

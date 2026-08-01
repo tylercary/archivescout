@@ -1,0 +1,48 @@
+{
+  "name": "archivescout",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "adapter": "python3 services/marketplace-adapter/adapter.py",
+    "dev:all": "concurrently -k -n app,adapter -c cyan,magenta \"npm:dev:wired\" \"npm:adapter\"",
+    "dev:all:live": "npm run dev:all",
+    "dev:wired": "DATA_SOURCE=live GRAILED_API_BASE=http://localhost:8787/grailed GRAILED_API_KEY=local-dev-key next dev",
+    "test:ebay-deletion": "node scripts/test-ebay-account-deletion.mjs",
+    "test:filters": "node scripts/test-filter-invariants.mjs",
+    "test:ebay-detail": "node scripts/test-ebay-detail.mjs",
+    "test:size-parser": "node --experimental-strip-types scripts/test-size-parser.mjs",
+    "test:authentication": "node scripts/test-authentication.mjs",
+    "test:saved-searches": "node --experimental-strip-types --import ./scripts/ts-register.mjs scripts/test-saved-search-serializer.mjs",
+    "verify:supabase": "node scripts/verify-supabase.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.45.4",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.446.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.11",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.6.3"
+  }
+}

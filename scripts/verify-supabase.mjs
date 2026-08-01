@@ -14,7 +14,7 @@
  *   · user B cannot read, update, or delete user A's row even knowing its id
  *   · inserting with someone else's user_id is rejected
  *
- * Creates two throwaway users (…@archivescout-test.com) and deletes its
+ * Creates two throwaway users (…@example.com) and deletes its
  * own rows afterwards. It never uses a service-role key — if RLS is wrong,
  * these tests fail rather than silently passing with elevated privileges.
  */
@@ -96,8 +96,8 @@ function check(name, passed, detail = "") {
 
 const anonClient = () => createClient(URL_, ANON);
 const stamp = Date.now();
-const userA = { email: `a-${stamp}@archivescout-test.com`, password: `Aa1!${stamp}aa` };
-const userB = { email: `b-${stamp}@archivescout-test.com`, password: `Bb1!${stamp}bb` };
+const userA = { email: `a-${stamp}@example.com`, password: `Aa1!${stamp}aa` };
+const userB = { email: `b-${stamp}@example.com`, password: `Bb1!${stamp}bb` };
 
 async function signUpAndIn(client, creds) {
   const { error: upErr } = await client.auth.signUp(creds);
@@ -106,8 +106,10 @@ async function signUpAndIn(client, creds) {
   if (error) {
     throw new Error(
       `${error.message}${
-        /confirm/i.test(error.message)
-          ? " — disable 'Confirm email' in Supabase → Authentication → Providers → Email, or confirm the address"
+        /confirm|rate limit|invalid/i.test(error.message)
+          ? "\n    → Supabase is still trying to SEND confirmation emails.\n" +
+            "      Dashboard → Authentication → Providers → Email → turn OFF 'Confirm email'.\n" +
+            "      (A send-rate limit or 'invalid email' both point at this.)"
           : ""
       }`,
     );

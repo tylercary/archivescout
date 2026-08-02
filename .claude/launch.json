@@ -6,6 +6,23 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "archivescout-dev-3100",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3100"],
+      "port": 3100
+    },
+    {
+      "name": "archivescout-wired-3100",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "--port", "3100"],
+      "port": 3100,
+      "env": {
+        "DATA_SOURCE": "live",
+        "GRAILED_API_BASE": "http://localhost:8787/grailed",
+        "GRAILED_API_KEY": "local-dev-key"
+      }
     }
   ]
 }

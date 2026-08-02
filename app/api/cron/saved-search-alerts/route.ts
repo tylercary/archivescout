@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAlertSweep } from "@/lib/saved-searches/alert-sweep";
+import { NoopDeliveryProvider } from "@/lib/saved-searches/alert-delivery";
 import { alertsReadiness } from "@/lib/saved-searches/alerts-config";
 
 /**
@@ -49,6 +50,41 @@ function authorize(request: Request): boolean {
 
 export async function POST(request: Request) {
   if (!authorize(request)) return unauthorized();
+
+  // ── dry run: POST ...?dryRun=1 ──
+  // Everything real EXCEPT delivery — live marketplace calls, real snapshots,
+  // real events. Only the email is stubbed. That is a deliberate choice: a run
+  // that skipped the writes would prove nothing about the parts most likely to
+  // break. The consequence is stated in the response, not buried: an event
+  // recorded here is deduped later, so it will NOT be emailed once alerts go
+  // live. Needs only the service role — not the flag, not an email provider,
+  // which is the point: it verifies the pipeline BEFORE you configure sending.
+  const dryRun = new URL(request.url).searchParams.get("dryRun") === "1";
+  if (dryRun) {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { ok: false, reason: "alerts_disabled", missing: ["SUPABASE_SERVICE_ROLE_KEY"] },
+        { status: 503 },
+      );
+    }
+    const delivery = new NoopDeliveryProvider();
+    try {
+      const summary = await runAlertSweep({ delivery });
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        ...summary,
+        // `emailsSent` counts calls to the provider; nothing left the building.
+        emailsSent: 0,
+        wouldHaveEmailed: delivery.sent.length,
+        note: "No email sent. Snapshots and alert events WERE written, so these events are already deduped and will not re-send once alerts are live.",
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[alert-sweep] dry-run fatal:", err instanceof Error ? err.message : err);
+      return NextResponse.json({ ok: false, dryRun: true, error: "Sweep failed" }, { status: 500 });
+    }
+  }
 
   const readiness = alertsReadiness();
   if (!readiness.enabled) {

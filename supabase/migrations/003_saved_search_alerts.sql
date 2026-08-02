@@ -115,8 +115,35 @@ create policy alert_events_owner_read
   );
 
 -- Keep updated_at honest on snapshots.
+-- Redefined here (create or replace, identical to 002) so this migration does
+-- not DEPEND on 002 having been applied. The SQL editor runs the whole script
+-- in one transaction: a missing function at the very bottom would abort it and
+-- silently roll back every table above, which looks like nothing ran at all.
+create or replace function public.touch_saved_search_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 drop trigger if exists snapshots_touch_updated_at on public.saved_search_listing_snapshots;
 create trigger snapshots_touch_updated_at
   before update on public.saved_search_listing_snapshots
   for each row
   execute function public.touch_saved_search_updated_at();
+
+-- ─────────────────────── confirm it actually landed ───────────────────────
+-- PostgREST serves the API from a cached schema. Without this nudge the new
+-- tables can 404 (PGRST205) for a while even though they exist.
+notify pgrst, 'reload schema';
+
+-- Runs last so the editor's result pane IS the confirmation: expect two rows.
+-- No rows means the script rolled back — read the error, don't re-run blindly.
+select table_name
+  from information_schema.tables
+ where table_schema = 'public'
+   and table_name in ('saved_search_listing_snapshots', 'saved_search_alert_events')
+ order by table_name;

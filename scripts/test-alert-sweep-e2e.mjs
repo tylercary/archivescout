@@ -52,12 +52,37 @@ async function main() {
   /* ── schema present? ── */
   console.log("━━ schema");
   const anon = createClient(URL_, ANON);
+  // Prove the connection itself is good first, so a missing table below can
+  // only mean the migration — not bad credentials or the wrong project.
+  const { error: baseErr } = await anon.from("saved_searches").select("id").limit(1);
+  check("connected (saved_searches reachable)", !baseErr, baseErr?.code ?? "");
+  if (baseErr) {
+    console.error("\n  Check NEXT_PUBLIC_SUPABASE_URL / ANON_KEY in .env.local.");
+    return finish();
+  }
+
   for (const table of ["saved_search_listing_snapshots", "saved_search_alert_events"]) {
     const { error } = await anon.from(table).select("id").limit(1);
     const missing = error?.code === "PGRST205";
-    check(`${table} exists`, !missing, missing ? "PGRST205 — run migration 003" : "");
+    check(`${table} exists`, !missing, missing ? "PGRST205 — not in the schema cache" : "");
     if (missing) {
-      console.error("\n  Run supabase/migrations/003_saved_search_alerts.sql in the SQL editor.");
+      console.error(
+        [
+          "",
+          "  The table is not visible to the API. Two different causes:",
+          "",
+          "  1. The migration never committed. The Supabase SQL editor runs a",
+          "     paste as ONE transaction, so an error anywhere rolls back",
+          "     everything and leaves no trace. Re-paste",
+          "     supabase/migrations/003_saved_search_alerts.sql — it now ends",
+          "     with a SELECT that must return two rows. No rows = it rolled",
+          "     back, and the editor's error is the real message.",
+          "",
+          "  2. It committed, but PostgREST is serving a stale schema cache.",
+          "     Run:  notify pgrst, 'reload schema';",
+          "",
+        ].join("\n"),
+      );
       return finish();
     }
   }

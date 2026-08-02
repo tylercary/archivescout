@@ -5,6 +5,7 @@ import { Bookmark, Check } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { alertsEnabledPublic } from "@/lib/saved-searches/alerts-config";
 import {
   describeSearch,
   defaultSearchName,
@@ -35,6 +36,8 @@ export function SaveSearchDialog({
   /** When set, the dialog edits this saved search instead of creating one. */
   existing?: SavedSearchRecord | null;
 }) {
+  // Honest UI: never imply an alert will be delivered when nothing delivers it.
+  const alertsLive = alertsEnabledPublic();
   const { save, update } = useSavedSearches();
   const [name, setName] = React.useState("");
   const [types, setTypes] = React.useState<NotificationType[]>([]);
@@ -104,20 +107,31 @@ export function SaveSearchDialog({
           ))}
         </dl>
 
-        <h3 className="eyebrow mt-6">Notify me about</h3>
+        <h3 className="eyebrow mt-6">
+          Notify me about
+          {!alertsLive && (
+            <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-medium normal-case tracking-normal text-muted-foreground">
+              Coming soon
+            </span>
+          )}
+        </h3>
         <div className="mt-2 space-y-2.5">
           <Checkbox
             checked={types.includes("new_listings")}
             onCheckedChange={() => toggleType("new_listings")}
             label="New listings"
+            disabled={!alertsLive}
           />
           <Checkbox
             checked={types.includes("price_drops")}
             onCheckedChange={() => toggleType("price_drops")}
             label="Price drops"
+            disabled={!alertsLive}
           />
           <p className="text-xs text-muted-foreground">
-            Your preference is saved now — alerts start once notifications ship.
+            {alertsLive
+              ? "We'll email you when this search finds something."
+              : "Alerts aren't running yet — these will switch on automatically once they are. Nothing is sent today."}
           </p>
         </div>
 

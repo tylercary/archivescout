@@ -64,6 +64,8 @@ export interface Database {
           last_checked_at: string | null;
           is_notification_enabled: boolean;
           notification_types: string[];
+          alert_lease_until: string | null;
+          alert_lease_owner: string | null;
         };
         Insert: {
           id?: string;
@@ -80,6 +82,8 @@ export interface Database {
           last_checked_at?: string | null;
           is_notification_enabled?: boolean;
           notification_types?: string[];
+          alert_lease_until?: string | null;
+          alert_lease_owner?: string | null;
         };
         Update: {
           id?: string;
@@ -96,6 +100,107 @@ export interface Database {
           last_checked_at?: string | null;
           is_notification_enabled?: boolean;
           notification_types?: string[];
+          alert_lease_until?: string | null;
+          alert_lease_owner?: string | null;
+        };
+        Relationships: [];
+      };
+      saved_search_listing_snapshots: {
+        Row: {
+          id: string;
+          saved_search_id: string;
+          marketplace: string;
+          external_listing_id: string;
+          last_price: number | null;
+          currency: string;
+          first_seen_at: string;
+          last_seen_at: string;
+          last_notified_price: number | null;
+          is_active: boolean;
+          listing_snapshot: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          saved_search_id: string;
+          marketplace: string;
+          external_listing_id: string;
+          last_price?: number | null;
+          currency?: string;
+          first_seen_at?: string;
+          last_seen_at?: string;
+          last_notified_price?: number | null;
+          is_active?: boolean;
+          listing_snapshot?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          saved_search_id?: string;
+          marketplace?: string;
+          external_listing_id?: string;
+          last_price?: number | null;
+          currency?: string;
+          first_seen_at?: string;
+          last_seen_at?: string;
+          last_notified_price?: number | null;
+          is_active?: boolean;
+          listing_snapshot?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      saved_search_alert_events: {
+        Row: {
+          id: string;
+          saved_search_id: string;
+          user_id: string;
+          event_type: string;
+          marketplace: string;
+          external_listing_id: string;
+          previous_price: number | null;
+          current_price: number | null;
+          currency: string;
+          listing_snapshot: Json;
+          dedupe_key: string;
+          delivery_status: string;
+          created_at: string;
+          delivered_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          saved_search_id: string;
+          user_id: string;
+          event_type: string;
+          marketplace: string;
+          external_listing_id: string;
+          previous_price?: number | null;
+          current_price?: number | null;
+          currency?: string;
+          listing_snapshot?: Json;
+          dedupe_key: string;
+          delivery_status?: string;
+          created_at?: string;
+          delivered_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          saved_search_id?: string;
+          user_id?: string;
+          event_type?: string;
+          marketplace?: string;
+          external_listing_id?: string;
+          previous_price?: number | null;
+          current_price?: number | null;
+          currency?: string;
+          listing_snapshot?: Json;
+          dedupe_key?: string;
+          delivery_status?: string;
+          created_at?: string;
+          delivered_at?: string | null;
         };
         Relationships: [];
       };

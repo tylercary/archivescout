@@ -16,6 +16,7 @@ import {
   type SavedSearchPayload,
 } from "@/lib/saved-searches/serializer";
 import type { SavedSearchRecord } from "@/lib/saved-searches/service";
+import { alertsEnabledPublic } from "@/lib/saved-searches/alerts-config";
 
 const payloadOf = (s: SavedSearchRecord): SavedSearchPayload => ({
   query: s.query,
@@ -34,6 +35,7 @@ const dateLabel = (iso: string | null) =>
     : null;
 
 export function SavedSearchesDashboard() {
+  const alertsLive = alertsEnabledPublic();
   const router = useRouter();
   const { user, loading: authLoading, configured } = useAuth();
   const { searches, loading, remove } = useSavedSearches();
@@ -162,9 +164,9 @@ export function SavedSearchesDashboard() {
                   <span className="inline-flex items-center gap-1">
                     <Bell className="h-3 w-3" aria-hidden />
                     {s.notificationsEnabled
-                      ? s.notificationTypes
+                      ? `${s.notificationTypes
                           .map((t) => (t === "new_listings" ? "New listings" : "Price drops"))
-                          .join(", ")
+                          .join(", ")}${alertsLive ? "" : " · not sending yet"}`
                       : "Alerts off"}
                   </span>
                   <span>Saved {dateLabel(s.createdAt)}</span>

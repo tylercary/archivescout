@@ -20,7 +20,9 @@
     "test:saved-searches": "node --experimental-strip-types --import ./scripts/ts-register.mjs scripts/test-saved-search-serializer.mjs",
     "verify:supabase": "node scripts/verify-supabase.mjs",
     "test:saved-searches-e2e": "node scripts/test-saved-searches-e2e.mjs",
-    "verify:google": "node --experimental-strip-types scripts/verify-google-auth.mjs"
+    "verify:google": "node --experimental-strip-types scripts/verify-google-auth.mjs",
+    "test:alerts": "node --experimental-strip-types scripts/test-alert-detection.mjs",
+    "test:alerts-e2e": "node scripts/test-alert-sweep-e2e.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
